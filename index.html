@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Call Transcript Tool v3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-height: 100vh; color: #1a202c; }
+  .header { background: linear-gradient(135deg, #1a365d 0%, #2d3748 100%); color: white; padding: 24px 32px; display: flex; align-items: center; gap: 16px; }
+  .header-icon { width: 48px; height: 48px; background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .header h1 { font-size: 21px; font-weight: 700; }
+  .header p { font-size: 13px; opacity: 0.75; margin-top: 2px; }
+  .container { max-width: 960px; margin: 28px auto; padding: 0 20px 60px; }
+  .card { background: white; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 20px; overflow: hidden; }
+  .card-header { padding: 16px 22px; border-bottom: 1px solid #e8ecf0; font-size: 15px; font-weight: 600; color: #2d3748; display: flex; align-items: center; gap: 10px; }
+  .card-body { padding: 22px; }
+
+  .drop-zone { border: 2.5px dashed #bee3f8; border-radius: 12px; padding: 36px 24px; text-align: center; cursor: pointer; background: #f7fbff; position: relative; transition: all 0.2s; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #3182ce; background: #ebf8ff; }
+  .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop-zone h3 { font-size: 15px; color: #2b6cb0; font-weight: 600; margin: 10px 0 5px; }
+  .drop-zone p { font-size: 13px; color: #718096; }
+  .file-list { margin-top: 14px; }
+  .file-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 7px; background: #fafafa; font-size: 13px; }
+  .file-item .fn { flex: 1; color: #2d3748; font-weight: 500; word-break: break-all; }
+  .file-item .fs { color: #a0aec0; font-size: 12px; flex-shrink: 0; }
+  .file-item .warn { color: #b7791f; font-size: 11px; background: #fffbeb; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+  .file-item .rb { background: none; border: none; cursor: pointer; color: #fc8181; padding: 2px 6px; border-radius: 4px; }
+
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media(max-width:600px){ .settings-grid{grid-template-columns:1fr} }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 13px; font-weight: 600; color: #4a5568; }
+  .form-group select { padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 14px; color: #2d3748; background: white; outline: none; }
+  .form-group select:focus { border-color: #3182ce; }
+
+  .btn-main { width: 100%; padding: 13px; background: linear-gradient(135deg, #2b6cb0, #2c5282); color: white; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: opacity 0.2s; margin-top: 10px; }
+  .btn-main:hover:not(:disabled) { opacity: 0.9; }
+  .btn-main:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .info-box { background: #ebf8ff; border: 1px solid #bee3f8; border-radius: 8px; padding: 11px 14px; font-size: 13px; color: #2b6cb0; margin-bottom: 14px; display: flex; gap: 10px; line-height: 1.5; }
+  .warn-box { background: #fffbeb; border: 1px solid #f6e05e; border-radius: 8px; padding: 11px 14px; font-size: 13px; color: #744210; margin-bottom: 14px; display: flex; gap: 10px; line-height: 1.5; }
+
+  /* Progress */
+  .prog-item { margin-bottom: 10px; border: 1px solid #e2e8f0; border-radius: 9px; overflow: hidden; }
+  .prog-label { padding: 8px 14px; font-size: 12px; font-weight: 600; color: #4a5568; background: #f7fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+  .prog-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .b-wait { background: #edf2f7; color: #718096; }
+  .b-proc { background: #fffbeb; color: #b7791f; }
+  .b-clean { background: #faf5ff; color: #6b46c1; }
+  .b-done { background: #f0fff4; color: #276749; }
+  .b-retry { background: #fff5f5; color: #c53030; }
+  .b-err { background: #fff5f5; color: #c53030; }
+  .b-skip { background: #edf2f7; color: #718096; }
+  .spinner { width: 10px; height: 10px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .prog-bar-wrap { height: 5px; background: #e2e8f0; }
+  .prog-bar { height: 100%; transition: width 0.4s, background 0.3s; }
+
+  /* Countdown */
+  .countdown { background: #fff5f5; border-top: 1px solid #fed7d7; padding: 6px 14px; font-size: 12px; color: #c53030; display: none; align-items: center; gap: 8px; }
+  .countdown.show { display: flex; }
+  .cd-num { font-weight: 700; font-size: 13px; min-width: 40px; }
+
+  /* Results */
+  .result-block { border: 1px solid #e2e8f0; border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+  .result-header { padding: 11px 14px; background: #f7fafc; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .result-fn { font-size: 13px; font-weight: 700; color: #2d3748; flex: 1; min-width: 120px; word-break: break-all; }
+  .tab-bar { display: flex; background: #f7fafc; border-bottom: 1px solid #e2e8f0; }
+  .tab-btn { padding: 8px 14px; font-size: 13px; font-weight: 600; border: none; background: none; cursor: pointer; color: #718096; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab-btn.active { color: #2b6cb0; border-bottom-color: #2b6cb0; }
+  .tab-content { display: none; padding: 14px; font-size: 14px; line-height: 1.9; white-space: pre-wrap; min-height: 60px; background: white; max-height: 380px; overflow-y: auto; }
+  .tab-content.active { display: block; }
+  .sp-g { color: #c53030; font-weight: 700; }
+  .sp-cs { color: #2b6cb0; font-weight: 700; }
+  .sp-note { color: #718096; font-style: italic; }
+
+  .dl-bar { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 14px; border-top: 1px solid #e2e8f0; background: #f7fafc; }
+  .btn-dl { padding: 6px 13px; border-radius: 7px; border: none; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+  .btn-dl:hover { opacity: 0.85; }
+  .dl-txt { background: #ebf8ff; color: #2b6cb0; }
+  .dl-doc { background: #f0fff4; color: #276749; }
+  .dl-all { background: #2d3748; color: white; }
+  .empty-state { text-align: center; padding: 36px; color: #a0aec0; font-size: 14px; }
+
+  /* Stats bar */
+  .stats-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .stat { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; font-size: 12px; color: #718096; display: flex; align-items: center; gap: 6px; }
+  .stat strong { font-size: 15px; color: #2d3748; }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-icon">🎙️</div>
+  <div>
+    <h1>Call Transcript Tool v3</h1>
+    <p>Auto-retry • Large file compression • Smart queue • AI formatted output</p>
+  </div>
+</div>
+<div class="container">
+
+  <div class="card">
+    <div class="card-header">📁 ऑडियो फाइलें चुनें</div>
+    <div class="card-body">
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".wav,.mp3,.m4a,.ogg,.webm,.flac" multiple>
+        <div style="font-size:38px">🎵</div>
+        <h3>यहाँ फाइलें छोड़ें या क्लिक करें</h3>
+        <p>WAV, MP3, M4A, OGG, FLAC &nbsp;•&nbsp; एक साथ कई फाइलें</p>
+      </div>
+      <div class="file-list" id="fileList"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">⚙️ सेटिंग्स</div>
+    <div class="card-body">
+      <div class="info-box">✨ <div><strong>Smart Processing:</strong> बड़ी files (>24MB) अपने आप compress होंगी। Rate limit आने पर tool खुद wait करके retry करेगा।</div></div>
+      <div class="settings-grid">
+        <div class="form-group">
+          <label>भाषा</label>
+          <select id="langSelect">
+            <option value="hi">हिंदी</option>
+            <option value="en">English</option>
+            <option value="auto">Auto Detect</option>
+            <option value="mr">मराठी</option>
+            <option value="gu">ગુજરાती</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Whisper Model</label>
+          <select id="modelSelect">
+            <option value="whisper-large-v3-turbo">whisper-large-v3-turbo (Fast)</option>
+            <option value="whisper-large-v3">whisper-large-v3 (Accurate)</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn-main" id="transcribeBtn" disabled onclick="startAll()">
+        <span>🚀</span> ट्रांसक्रिप्शन शुरू करें
+      </button>
+    </div>
+  </div>
+
+  <div class="card" id="progressCard" style="display:none">
+    <div class="card-header">⏳ प्रगति <span id="statsInline" style="font-weight:400;font-size:13px;color:#718096;margin-left:10px"></span></div>
+    <div class="card-body" id="progressBody"></div>
+  </div>
+
+  <div class="card" id="resultsCard" style="display:none">
+    <div class="card-header">📄 ट्रांसक्रिप्ट</div>
+    <div class="card-body" id="resultsArea"></div>
+    <div class="dl-bar" id="dlBar" style="display:none">
+      <button class="btn-dl dl-all" onclick="dlAll('txt')">⬇️ सभी .TXT</button>
+      <button class="btn-dl dl-doc" onclick="dlAll('doc')">⬇️ सभी .DOC</button>
+      <button class="btn-dl dl-txt" onclick="copyAll()">📋 सब कॉपी करें</button>
+    </div>
+  </div>
+
+</div>
+<script>
+const API = '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';
+const MAX_SIZE = 24 * 1024 * 1024; // 24MB Groq limit
+let files = [], rawMap = {}, fmtMap = {};
+
+// ── File selection ──────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); addFiles([...e.dataTransfer.files]); });
+fileInput.addEventListener('change', () => { addFiles([...fileInput.files]); fileInput.value = ''; });
+
+function addFiles(newFiles) {
+  newFiles.forEach(f => { if (!files.find(x => x.name===f.name && x.size===f.size)) files.push(f); });
+  renderFiles();
+}
+function removeFile(i) { files.splice(i,1); renderFiles(); }
+function renderFiles() {
+  const fl = document.getElementById('fileList');
+  fl.innerHTML = files.map((f,i) => {
+    const mb = (f.size/1048576).toFixed(1);
+    const big = f.size > MAX_SIZE;
+    return `<div class="file-item">
+      <span>🎵</span>
+      <span class="fn">${f.name}</span>
+      ${big ? `<span class="warn">⚠️ ${mb}MB → compress होगी</span>` : `<span class="fs">${mb} MB</span>`}
+      <button class="rb" onclick="removeFile(${i})">✕</button>
+    </div>`;
+  }).join('');
+  document.getElementById('transcribeBtn').disabled = files.length === 0;
+}
+
+// ── Audio compression using Web Audio API ──────────────────────
+async function compressAudio(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        const decoded = await audioCtx.decodeAudioData(e.target.result);
+        const TARGET_SR = 16000;
+        const offCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * TARGET_SR), TARGET_SR);
+        const src = offCtx.createBufferSource();
+
+        // Mix down to mono
+        const monoBuffer = offCtx.createBuffer(1, decoded.length, decoded.sampleRate);
+        const monoData = monoBuffer.getChannelData(0);
+        for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+          const chData = decoded.getChannelData(ch);
+          for (let i = 0; i < chData.length; i++) monoData[i] += chData[i] / decoded.numberOfChannels;
+        }
+        src.buffer = monoBuffer;
+        src.connect(offCtx.destination);
+        src.start();
+        const rendered = await offCtx.startRendering();
+        const wav = audioBufferToWav(rendered);
+        resolve(new File([wav], file.name.replace(/\.[^.]+$/, '') + '_compressed.wav', { type: 'audio/wav' }));
+      } catch(err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function audioBufferToWav(buffer) {
+  const numCh = buffer.numberOfChannels;
+  const sr = buffer.sampleRate;
+  const samples = buffer.getChannelData(0);
+  const pcm = new Int16Array(samples.length);
+  for (let i = 0; i < samples.length; i++) pcm[i] = Math.max(-32768, Math.min(32767, samples[i] * 32768));
+  const wavBuf = new ArrayBuffer(44 + pcm.byteLength);
+  const view = new DataView(wavBuf);
+  const ws = (off,v) => view.setUint32(off,v,true);
+  const wss = (off,v) => view.setUint16(off,v,true);
+  const wstr = (off,s) => { for(let i=0;i<s.length;i++) view.setUint8(off+i, s.charCodeAt(i)); };
+  wstr(0,'RIFF'); ws(4,36+pcm.byteLength); wstr(8,'WAVE');
+  wstr(12,'fmt '); ws(16,16); wss(20,1); wss(22,numCh);
+  ws(24,sr); ws(28,sr*numCh*2); wss(32,numCh*2); wss(34,16);
+  wstr(36,'data'); ws(40,pcm.byteLength);
+  new Int16Array(wavBuf, 44).set(pcm);
+  return wavBuf;
+}
+
+// ── Parse retry-after from Groq error message ──────────────────
+function parseRetrySeconds(msg) {
+  const m = msg.match(/try again in ([\d]+)m([\d.]+)s/i) || msg.match(/try again in ([\d.]+)s/i);
+  if (!m) return 15;
+  if (m.length === 3) return parseInt(m[1])*60 + Math.ceil(parseFloat(m[2]));
+  return Math.ceil(parseFloat(m[1]));
+}
+
+// ── Countdown helper ───────────────────────────────────────────
+function runCountdown(cdEl, seconds) {
+  return new Promise(resolve => {
+    cdEl.classList.add('show');
+    let rem = seconds;
+    const el = cdEl.querySelector('.cd-num');
+    const iv = setInterval(() => {
+      rem--;
+      el.textContent = rem + 's';
+      if (rem <= 0) { clearInterval(iv); cdEl.classList.remove('show'); resolve(); }
+    }, 1000);
+    el.textContent = rem + 's';
+  });
+}
+
+// ── Whisper call with auto-retry ───────────────────────────────
+async function whisper(file, model, lang, pid) {
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('model', model);
+    if (lang !== 'auto') fd.append('language', lang);
+    fd.append('response_format', 'json');
+    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + API }, body: fd
+    });
+    if (res.ok) { const d = await res.json(); return d.text || ''; }
+    const err = await res.json().catch(() => ({ error: { message: 'HTTP ' + res.status } }));
+    const msg = err?.error?.message || 'Unknown error';
+    if (res.status === 429 && attempt <= 4) {
+      const wait = parseRetrySeconds(msg);
+      setB(pid, 'retry', `⏳ Rate limit — ${wait}s बाद retry`);
+      const cdEl = document.getElementById(pid + '_cd');
+      await runCountdown(cdEl, wait);
+      setB(pid, 'proc', '🎙️ Retry कर रहे हैं...');
+    } else {
+      throw new Error(msg.length > 120 ? msg.substring(0,120)+'…' : msg);
+    }
+  }
+}
+
+// ── LLM cleanup ────────────────────────────────────────────────
+async function llmClean(raw) {
+  const sys = `तुम एक कॉल सेंटर ट्रांसक्रिप्ट विशेषज्ञ हो। Noisy speech-to-text को साफ़ हिंदी संवाद में बदलो।
+नियम: 
+- "ग्राहक:" और "कस्टमर सपोर्ट:" format use करो
+- यह JCB मशीन सर्विस कॉल है — context समझो
+- Background noise → (पृष्ठभूमि में शोर)
+- Unclear parts → (अस्पष्ट)
+- केवल हिंदी output, कोई English explanation नहीं
+- जो समझ न आए उसे हटाओ`;
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + API, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile', max_tokens: 2000,
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: 'इस raw transcript को साफ़ संवाद में बदलो:\n\n' + raw.substring(0, 3500) }]
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'LLM error'); }
+  const d = await res.json();
+  return d.choices?.[0]?.message?.content || '';
+}
+
+// ── Main loop ──────────────────────────────────────────────────
+async function startAll() {
+  if (!files.length) return;
+  document.getElementById('transcribeBtn').disabled = true;
+  document.getElementById('transcribeBtn').innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:3px"></span> प्रोसेसिंग...';
+  document.getElementById('progressCard').style.display = 'block';
+  document.getElementById('resultsCard').style.display = 'block';
+  document.getElementById('progressBody').innerHTML = '';
+  document.getElementById('resultsArea').innerHTML = '';
+  rawMap = {}; fmtMap = {};
+
+  const lang = document.getElementById('langSelect').value;
+  const model = document.getElementById('modelSelect').value;
+  let done=0, errs=0;
+
+  // Build progress items
+  files.forEach((f,i) => buildProgItem(i, f.name, f.size));
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i], pid = 'p'+i;
+    try {
+      // Step 1: Compress if needed
+      let uploadFile = f;
+      if (f.size > MAX_SIZE) {
+        setB(pid, 'proc', '🗜️ Compressing...');
+        setBar(pid, 15, '#3182ce');
+        uploadFile = await compressAudio(f);
+        // if still too big, chunk isn't handled — just try and let error show
+      }
+
+      // Step 2: Whisper
+      setB(pid, 'proc', '🎙️ Whisper...');
+      setBar(pid, 30, '#3182ce');
+      const raw = await whisper(uploadFile, model, lang, pid);
+      rawMap[f.name] = raw;
+      setBar(pid, 60, '#805ad5');
+
+      // Step 3: LLM
+      setB(pid, 'clean', '✨ AI Cleanup...');
+      const fmt = await llmClean(raw);
+      fmtMap[f.name] = fmt;
+      setBar(pid, 100, '#38a169');
+      setB(pid, 'done', '✓ पूर्ण');
+      done++;
+
+      addResult(f.name, raw, fmt, i);
+    } catch(err) {
+      setBar(pid, 100, '#fc8181');
+      setB(pid, 'err', '✗ त्रुटि');
+      errs++;
+      addResult(f.name, '⚠️ त्रुटि: ' + err.message, '', i, true);
+    }
+    document.getElementById('statsInline').textContent = `✓ ${done} पूर्ण  ✗ ${errs} त्रुटि  (${i+1}/${files.length})`;
+  }
+
+  document.getElementById('transcribeBtn').disabled = false;
+  document.getElementById('transcribeBtn').innerHTML = '<span>🔄</span> फिर से चलाएं';
+  if (Object.keys(fmtMap).length) document.getElementById('dlBar').style.display = 'flex';
+}
+
+// ── Progress UI ────────────────────────────────────────────────
+function buildProgItem(i, name, size) {
+  const big = size > MAX_SIZE;
+  const pb = document.getElementById('progressBody');
+  pb.innerHTML += `<div class="prog-item" id="p${i}">
+    <div class="prog-label">
+      <span>🎵</span>
+      <span class="prog-name">${name} ${big?'<span style="font-size:10px;color:#b7791f">(compress होगी)</span>':''}</span>
+      <span class="badge b-wait" id="p${i}_b">⏳ प्रतीक्षा</span>
+    </div>
+    <div class="prog-bar-wrap"><div class="prog-bar" id="p${i}_bar" style="width:0%"></div></div>
+    <div class="countdown" id="p${i}_cd">🔄 Rate limit — <span class="cd-num">0s</span> बाद retry होगा</div>
+  </div>`;
+}
+function setB(pid, type, txt) {
+  const el = document.getElementById(pid+'_b');
+  const cls = {proc:'b-proc',clean:'b-clean',done:'b-done',retry:'b-retry',err:'b-err',skip:'b-skip',wait:'b-wait'}[type];
+  const spin = (type==='proc'||type==='clean') ? `<span class="spinner"></span> ` : '';
+  el.className = 'badge ' + cls;
+  el.innerHTML = spin + txt;
+}
+function setBar(pid, pct, color='#3182ce') {
+  const b = document.getElementById(pid+'_bar');
+  b.style.width = pct+'%'; b.style.background = color;
+}
+
+// ── Results ────────────────────────────────────────────────────
+function addResult(fname, raw, fmt, idx, isErr=false) {
+  const ra = document.getElementById('resultsArea');
+  const rid = 'r'+idx;
+  const div = document.createElement('div');
+  div.className = 'result-block';
+  div.innerHTML = `
+    <div class="result-header">
+      <span>${isErr?'❌':'✅'}</span>
+      <span class="result-fn">${fname}</span>
+      <button class="btn-dl dl-txt" onclick="dlOne('${fname}','txt')" style="padding:5px 11px;font-size:11px">⬇️ TXT</button>
+      <button class="btn-dl dl-doc" onclick="dlOne('${fname}','doc')" style="padding:5px 11px;font-size:11px">⬇️ DOC</button>
+    </div>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="showTab('${rid}','fmt',this)">✨ साफ़ संवाद</button>
+      <button class="tab-btn" onclick="showTab('${rid}','raw',this)">📝 Raw</button>
+    </div>
+    <div class="tab-content active" id="${rid}_fmt">${renderFmt(fmt||raw)}</div>
+    <div class="tab-content" id="${rid}_raw" style="color:#718096;font-size:13px">${esc(raw)}</div>`;
+  ra.appendChild(div);
+}
+function showTab(rid, t, btn) {
+  ['fmt','raw'].forEach(x => { const el=document.getElementById(rid+'_'+x); if(el) el.className='tab-content'+(x===t?' active':''); });
+  btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+function renderFmt(text) {
+  if (!text) return '<span style="color:#a0aec0">उपलब्ध नहीं</span>';
+  return text.split('\n').map(line => {
+    const l = esc(line);
+    if (l.startsWith('ग्राहक:')) return `<div><span class="sp-g">ग्राहक:</span>${l.slice(7)}</div>`;
+    if (l.startsWith('कस्टमर सपोर्ट:')) return `<div><span class="sp-cs">कस्टमर सपोर्ट:</span>${l.slice(15)}</div>`;
+    if (l.startsWith('(')) return `<div class="sp-note">${l}</div>`;
+    return l ? `<div>${l}</div>` : '<div style="height:5px"></div>';
+  }).join('');
+}
+function esc(t) { return (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Download ───────────────────────────────────────────────────
+function dlOne(fname, type) {
+  const text = fmtMap[fname] || rawMap[fname] || '';
+  const header = `कॉल ट्रांसक्रिप्ट\n${'='.repeat(50)}\nफाइल: ${fname}\nदिनांक: ${new Date().toLocaleDateString('hi-IN')}\n${'='.repeat(50)}\n\n`;
+  if (type==='txt') {
+    trigger(new Blob([header+text],{type:'text/plain;charset=utf-8'}), fname.replace(/\.[^.]+$/,'')+'_transcript.txt');
+  } else {
+    trigger(new Blob(['\ufeff'+buildDoc(fname,text)],{type:'application/msword'}), fname.replace(/\.[^.]+$/,'')+'_transcript.doc');
+  }
+}
+function dlAll(type) {
+  const names = Object.keys(fmtMap);
+  if (!names.length) return;
+  if (type==='txt') {
+    let out = `कॉल ट्रांसक्रिप्ट रिपोर्ट\n${'='.repeat(60)}\nदिनांक: ${new Date().toLocaleDateString('hi-IN')}\n\n`;
+    names.forEach((n,i) => { out += `[${i+1}] ${n}\n${'-'.repeat(40)}\n${fmtMap[n]}\n\n`; });
+    trigger(new Blob([out],{type:'text/plain;charset=utf-8'}), 'all_transcripts_'+Date.now()+'.txt');
+  } else {
+    let body = names.map((n,i) => `<h2>[${i+1}] ${esc(n)}</h2>${fmtLines(fmtMap[n])}`).join('');
+    const html = `<html><head><meta charset='utf-8'><style>body{font-family:Arial;font-size:13pt;line-height:1.9}h1{font-size:18pt;color:#1a365d}h2{font-size:14pt;color:#2b6cb0;margin-top:24pt;border-bottom:1px solid #bee3f8;padding-bottom:4pt}.meta{color:#718096;font-size:11pt;margin-bottom:12pt}.g{color:#c53030;font-weight:bold}.cs{color:#2b6cb0;font-weight:bold}.note{color:#718096;font-style:italic}</style></head><body><h1>📞 कॉल ट्रांसक्रिप्ट रिपोर्ट</h1><div class="meta">दिनांक: ${new Date().toLocaleDateString('hi-IN')} | कुल: ${names.length}</div>${body}</body></html>`;
+    trigger(new Blob(['\ufeff'+html],{type:'application/msword'}), 'all_transcripts_'+Date.now()+'.doc');
+  }
+}
+function copyAll() {
+  const t = Object.keys(fmtMap).map((n,i)=>`[${i+1}] ${n}\n${'-'.repeat(40)}\n${fmtMap[n]}`).join('\n\n');
+  navigator.clipboard.writeText(t).then(()=>{
+    const b=event.target, o=b.innerHTML; b.innerHTML='✅ कॉपी!'; setTimeout(()=>b.innerHTML=o,2000);
+  });
+}
+function buildDoc(fname, text) {
+  return `<html><head><meta charset='utf-8'><style>body{font-family:Arial;font-size:13pt;line-height:1.9}h1{font-size:16pt;color:#1a365d}.meta{color:#718096;font-size:11pt;margin-bottom:12pt}.g{color:#c53030;font-weight:bold}.cs{color:#2b6cb0;font-weight:bold}.note{color:#718096;font-style:italic}</style></head><body><h1>📞 कॉल ट्रांसक्रिप्ट</h1><div class="meta">📁 ${esc(fname)} | 📅 ${new Date().toLocaleDateString('hi-IN')}</div>${fmtLines(text)}</body></html>`;
+}
+function fmtLines(text) {
+  return (text||'').split('\n').map(line => {
+    const l = esc(line);
+    if (l.startsWith('ग्राहक:')) return `<p><span class="g">ग्राहक:</span>${l.slice(7)}</p>`;
+    if (l.startsWith('कस्टमर सपोर्ट:')) return `<p><span class="cs">कस्टमर सपोर्ट:</span>${l.slice(15)}</p>`;
+    if (l.startsWith('(')) return `<p class="note">${l}</p>`;
+    return l ? `<p>${l}</p>` : '';
+  }).join('');
+}
+function trigger(blob, name) {
+  const a = Object.assign(document.createElement('a'),{href:URL.createObjectURL(blob),download:name});
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+</script>
+</body>
+</html>
